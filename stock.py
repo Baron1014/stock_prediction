@@ -6,6 +6,8 @@ import numpy as np
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
+from matplotlib import pyplot as plt
+from sklearn.metrics import mean_squared_error as mse
 
 # stock info
 u_id = "NM6101080"
@@ -16,7 +18,7 @@ price = 590
 
 # Model para
 learning_rate = 0.0001
-EPOCH = 10000
+EPOCH = 8000
 
 
 class MydataSet(Dataset):
@@ -59,7 +61,7 @@ class ReadData():
             for i, data in enumerate(history_info) if i != len(history_info)-1
         ]
         history_data = np.array(history_data)
-        self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.2)
+        self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.2, shuffle=False)
         
     @property
     def get_training_data(self):
@@ -82,10 +84,14 @@ class ReadData():
         std = np.std(data, axis=0)
         return  (data - mean) / std
 
-def train(trainloader, feature_number):
+def train(training_data, feature_number):
+    wandb.init(project='Stock', entity="baron")
+    train_data = MydataSet(training_data)
+    trainloader = DataLoader(dataset=train_data, batch_size=64)
     model = RNN(feature_number)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # optimize all cnn parameters
     loss_func = nn.MSELoss()
+
     for step in range(EPOCH):
         for tx, ty in trainloader:
             output = model(torch.unsqueeze(tx, dim=0))
@@ -102,8 +108,26 @@ def train(trainloader, feature_number):
 
 def predict(model, test_x, test_y):
     predict_y = model(test_x)
-    print(predict_y)
-    print(test_y)
+
+
+def load_model(model_name, feature_number):
+    device = torch.device('cpu')
+    model = RNN(feature_number)
+    model.load_state_dict(torch.load("models/{}.pth".format(model_name), map_location=device))
+
+    return model
+
+def evaluation(model, test_x, test_y):
+    predict_y = model(test_x)
+    predict_y_array = predict_y.cpu().detach().numpy()
+
+    # low price error
+    plt.plot(predict_y_array, color="red", alpha=0.8, label="predict")
+    plt.plot(test_y, color="green", alpha=0.8, label="real")
+    plt.ylabel("Money")
+    plt.legend(loc="upper right")
+    wandb.log({"LowPrice" : plt})
+    wandb.summary["low price mse"] = mse(predict_y_array, test_y)
 
 def main():
     r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"uname":u_id, "pass":password, "scode": scode, "svol": str(vol), "sell_price":str(price)})
@@ -114,10 +138,9 @@ if __name__ == "__main__":
     wandb.init(project='Stock', entity="baron")
     all_data = ReadData(2330, 20150301, 20220322)
     training_data = all_data.get_training_data
-    train_data = MydataSet(training_data)
-    mydataloader = DataLoader(dataset=train_data, batch_size=64)
-    model = train(mydataloader, training_data.shape[1]-1)
+    model = train(training_data, training_data.shape[1]-1)
     test_x, test_y = all_data.get_testing_data
-    predict(model, test_x, test_y)
+    #model = load_model("save_model", feature_number=training_data.shape[1]-1)
+    evaluation(model, test_x, test_y)
     wandb.finish()
     
