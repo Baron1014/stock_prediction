@@ -182,10 +182,10 @@ if __name__ == "__main__":
         wandb.init(project='Stock', entity="baron")
         all_data = ReadData(2330, 20150301, 20220322)
         training_data = all_data.get_training_data
-        #model = train(training_data, training_data.shape[1]-1)
+        model = train(training_data, training_data.shape[1]-1)
         test_x, test_y = all_data.get_testing_data
-        model = load_model("save_model", feature_number=training_data.shape[1]-1)
-        evaluation(model, test_x, test_y)
+        #model = load_model("save_model", feature_number=training_data.shape[1]-1)
+        #evaluation(model, test_x, test_y)
         wandb.finish()
 
     
