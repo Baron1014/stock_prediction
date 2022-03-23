@@ -3,7 +3,9 @@ import argparse
 import json
 import torch
 import wandb
+import db
 import numpy as np
+from datetime import datetime
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
@@ -15,7 +17,6 @@ u_id = "NM6101080"
 password = "as987654"
 scode = "2330"
 vol = 5
-price = 590
 
 # Model para
 learning_rate = 0.0001
@@ -51,8 +52,8 @@ class RNN(nn.Module):
         return out
 
 class ReadInference:
-    def __init__(self, stock, s_date, e_date):
-        api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_stock_info_from_date_json/{}/{}/{}".format(stock, s_date, e_date)
+    def __init__(self, s_date, e_date):
+        api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_stock_info_from_date_json/{}/{}/{}".format(2330, s_date, e_date)
         r = requests.get(api_url)
         history_info = json.loads(r.text) 
         # data rerset low_price to next day
@@ -61,20 +62,17 @@ class ReadInference:
             for i, data in enumerate(history_info)
         ]
         history_data = np.array(history_data)
-        nor_x = self.normalize(history_data)
+
+        train_data = ReadData()
+        nor_x = train_data.normalize(history_data)
         self.__inference_data = nor_x[0, :].reshape(1, -1)
 
     @property
     def get_inference_data(self):
         return  torch.Tensor(self.__inference_data)
 
-    def normalize(self, data):
-        mean = np.mean(data, axis=0)
-        std = np.std(data, axis=0)
-        return  (data - mean) / std
-
 class ReadData():
-    def __init__(self, stock, s_date, e_date):
+    def __init__(self, stock=2330, s_date=20150301, e_date=20220322):
         api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_stock_info_from_date_json/{}/{}/{}".format(stock, s_date, e_date)
         r = requests.get(api_url)
         history_info = json.loads(r.text) 
@@ -87,6 +85,8 @@ class ReadData():
         history_data = np.array(history_data)
         
         self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.2, random_state=42)
+        self.__mean = np.mean(self.__training_data[:, :-1], axis=0)
+        self.__std = np.std(self.__training_data[:, :-1], axis=0)
         
     @property
     def get_training_data(self):
@@ -105,9 +105,7 @@ class ReadData():
         return torch.Tensor(nor_x), y
 
     def normalize(self, data):
-        mean = np.mean(data, axis=0)
-        std = np.std(data, axis=0)
-        return  (data - mean) / std
+        return  (data - self.__mean) / self.__std
 
 def train(training_data, feature_number):
     train_data = MydataSet(training_data)
@@ -131,11 +129,13 @@ def train(training_data, feature_number):
     return model
 
 def predict():
-    all_data = ReadInference(2330, 20150301, 20220324)
+    today = datetime.now().strftime('%Y%m%d')
+    all_data = ReadInference(20220301, int(today))
     predict_data = all_data.get_inference_data
     model = load_model("save_model", feature_number=predict_data.shape[1])
     predict_value = model(predict_data)
-    print(predict_value.item())
+
+    return "%.1f" % predict_value.item()
 
 
 def load_model(model_name, feature_number):
@@ -164,8 +164,10 @@ def evaluation(model, test_x, test_y):
     wandb.summary["low price mse"] = mse(predict_y_array, test_y)
 
 def main():
-    r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"uname":u_id, "pass":password, "scode": scode, "svol": str(vol), "sell_price":str(price)})
+    low_price = predict()
+    r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"uname":u_id, "pass":password, "scode": scode, "svol": str(vol), "sell_price":str(low_price)})
     print(r)
+    db.insert_predict_data(low_price, high_price=0, low_number=vol, high_number=vol)
 
 
 if __name__ == "__main__":
@@ -177,10 +179,10 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     if args.predict:
-        predict()
+        main()
     else:
         wandb.init(project='Stock', entity="baron")
-        all_data = ReadData(2330, 20150301, 20220322)
+        all_data = ReadData()
         training_data = all_data.get_training_data
         model = train(training_data, training_data.shape[1]-1)
         test_x, test_y = all_data.get_testing_data
