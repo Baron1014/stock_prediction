@@ -61,7 +61,7 @@ class ReadData():
             for i, data in enumerate(history_info) if i != len(history_info)-1
         ]
         history_data = np.array(history_data)
-        self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.2, shuffle=False)
+        self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.2, random_state=42)
         
     @property
     def get_training_data(self):
