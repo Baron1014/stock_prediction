@@ -1,4 +1,5 @@
 import requests 
+import argparse
 import json
 import torch
 import wandb
@@ -49,18 +50,42 @@ class RNN(nn.Module):
         out = self.out(r_out)
         return out
 
+class ReadInference:
+    def __init__(self, stock, s_date, e_date):
+        api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_stock_info_from_date_json/{}/{}/{}".format(stock, s_date, e_date)
+        r = requests.get(api_url)
+        history_info = json.loads(r.text) 
+        # data rerset low_price to next day
+        history_data = [
+            [data['capacity'], data['turnover'], data["open"], data["high"],data["close"],data["change"],data["transaction_volume"]] 
+            for i, data in enumerate(history_info)
+        ]
+        history_data = np.array(history_data)
+        nor_x = self.normalize(history_data)
+        self.__inference_data = nor_x[0, :].reshape(1, -1)
+
+    @property
+    def get_inference_data(self):
+        return  torch.Tensor(self.__inference_data)
+
+    def normalize(self, data):
+        mean = np.mean(data, axis=0)
+        std = np.std(data, axis=0)
+        return  (data - mean) / std
+
 class ReadData():
     def __init__(self, stock, s_date, e_date):
         api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_stock_info_from_date_json/{}/{}/{}".format(stock, s_date, e_date)
         r = requests.get(api_url)
         history_info = json.loads(r.text) 
         # data rerset low_price to next day
-        target = [data["low"] for i, data in enumerate(history_info) if i != 0]
+        target = [data["low"] for i, data in enumerate(history_info) if i != len(history_info)-1]
         history_data = [
             [data['capacity'], data['turnover'], data["open"], data["high"],data["close"],data["change"],data["transaction_volume"], target[i]] 
             for i, data in enumerate(history_info) if i != len(history_info)-1
         ]
         history_data = np.array(history_data)
+        
         self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.2, random_state=42)
         
     @property
@@ -85,7 +110,6 @@ class ReadData():
         return  (data - mean) / std
 
 def train(training_data, feature_number):
-    wandb.init(project='Stock', entity="baron")
     train_data = MydataSet(training_data)
     trainloader = DataLoader(dataset=train_data, batch_size=64)
     model = RNN(feature_number)
@@ -106,8 +130,12 @@ def train(training_data, feature_number):
     torch.save(model.state_dict(), "./models/save_model.pth")
     return model
 
-def predict(model, test_x, test_y):
-    predict_y = model(test_x)
+def predict():
+    all_data = ReadInference(2330, 20150301, 20220324)
+    predict_data = all_data.get_inference_data
+    model = load_model("save_model", feature_number=predict_data.shape[1])
+    predict_value = model(predict_data)
+    print(predict_value.item())
 
 
 def load_model(model_name, feature_number):
@@ -127,6 +155,12 @@ def evaluation(model, test_x, test_y):
     plt.ylabel("Money")
     plt.legend(loc="upper right")
     wandb.log({"LowPrice" : plt})
+    # line_data = np.concatenate((predict_y_array, test_y), axis=1)
+    # idx = np.array([float(i) for i in range(line_data.shape[0])])
+    #line_data = np.concatenate((idx, line_data), axis=1)
+    #table = wandb.Table(data=line_data, columns=["idx", "predict", "real"])
+    # wandb.log({"predict low price":  wandb.plot.line_series(xs=idx, ys=line_data.reshape(2, -1), keys=["predict", "real"], title="Predict & Real LowPrice")})
+    #wandb.log({"real low price":  wandb.plot.line(table, "idx", "real", title="Real LowPrice")})
     wandb.summary["low price mse"] = mse(predict_y_array, test_y)
 
 def main():
@@ -135,12 +169,23 @@ def main():
 
 
 if __name__ == "__main__":
-    wandb.init(project='Stock', entity="baron")
-    all_data = ReadData(2330, 20150301, 20220322)
-    training_data = all_data.get_training_data
-    model = train(training_data, training_data.shape[1]-1)
-    test_x, test_y = all_data.get_testing_data
-    #model = load_model("save_model", feature_number=training_data.shape[1]-1)
-    evaluation(model, test_x, test_y)
-    wandb.finish()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--predict',
+                        action='store_true',
+                        help='Execute prediction.')
+    
+    args = parser.parse_args()
+    if args.predict:
+        predict()
+    else:
+        wandb.init(project='Stock', entity="baron")
+        all_data = ReadData(2330, 20150301, 20220322)
+        training_data = all_data.get_training_data
+        #model = train(training_data, training_data.shape[1]-1)
+        test_x, test_y = all_data.get_testing_data
+        model = load_model("save_model", feature_number=training_data.shape[1]-1)
+        evaluation(model, test_x, test_y)
+        wandb.finish()
+
     
