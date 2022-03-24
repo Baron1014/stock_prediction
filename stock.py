@@ -20,7 +20,7 @@ vol = 5
 
 # Model para
 learning_rate = 0.0001
-EPOCH = 8000
+EPOCH = 100000
 
 logger = logger.create_logger('predict_low_price', 'log/predict_low_price_log.log')
 
@@ -84,12 +84,13 @@ class ReadData():
             for i, data in enumerate(history_info) if i != len(history_info)-1
         ]
         # date: new -> old, change to old -> new
-        history_data = history_data.reverse()
+        history_data.reverse()
         history_data = np.array(history_data)
         
         self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.1, shuffle=False)
         self.__mean = np.mean(self.__training_data[:, :-1], axis=0)
         self.__std = np.std(self.__training_data[:, :-1], axis=0)
+        self.__all_data = history_data
         
     @property
     def get_training_data(self):
@@ -106,6 +107,15 @@ class ReadData():
         nor_x = self.normalize(self.__testing_data[:, :-1])
 
         return torch.Tensor(nor_x), y
+    
+    @property
+    def get_all_data(self):
+        # normalize x: input type "numpy array"
+        y = self.__all_data[:, -1].reshape(-1, 1)
+        nor_x = self.normalize(self.__all_data[:, :-1])
+
+        return torch.Tensor(nor_x), y
+
 
     def normalize(self, data):
         return  (data - self.__mean) / self.__std
@@ -148,7 +158,7 @@ def load_model(model_name, feature_number):
 
     return model
 
-def evaluation(model, test_x, test_y):
+def evaluation(model, test_x, test_y, history_entity):
     predict_y = model(test_x.reshape(1, *test_x.shape))
     predict_y_array = predict_y.cpu().detach().numpy().reshape(-1, 1)
     print(predict_y_array.shape)
@@ -166,6 +176,17 @@ def evaluation(model, test_x, test_y):
     # wandb.log({"predict low price":  wandb.plot.line_series(xs=idx, ys=line_data.reshape(2, -1), keys=["predict", "real"], title="Predict & Real LowPrice")})
     #wandb.log({"real low price":  wandb.plot.line(table, "idx", "real", title="Real LowPrice")})
     wandb.summary["low price mse"] = mse(predict_y_array, test_y)
+
+    # plot history curve
+    his_x, his_y = history_entity.get_all_data
+    his_y_hat = model(his_x.reshape(1, *his_x.shape))
+    his_y_hat = his_y_hat.cpu().detach().numpy().reshape(-1, 1)
+    fig, ax = plt.subplots()
+    ax.plot(his_y_hat, color="red", alpha=0.8, label="predict")
+    ax.plot(his_y, color="green", alpha=0.8, label="real")
+    ax.legend(loc="upper right")
+    wandb.log({"History Low price" : ax})
+
 
 def main():
     low_price = predict()
@@ -188,14 +209,17 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     if args.predict:
-        main()
+        week_day = datetime.today().strftime('%A')
+        if week_day not in ["Saturday", "Sunday"]:
+            print("Today is {}".format(week_day))
+            main()
     elif args.train:
         wandb.init(project='Stock', entity="baron")
         all_data = ReadData()
         training_data = all_data.get_training_data
         model = train(training_data, training_data.shape[1]-1)
         test_x, test_y = all_data.get_testing_data
-        evaluation(model, test_x, test_y)
+        evaluation(model, test_x, test_y, history_entity = all_data)
         wandb.finish()
     else:
         wandb.init(project='Stock', entity="baron")
@@ -203,7 +227,7 @@ if __name__ == "__main__":
         training_data = all_data.get_training_data
         test_x, test_y = all_data.get_testing_data
         model = load_model("save_model", feature_number=training_data.shape[1]-1)
-        evaluation(model, test_x, test_y)
+        evaluation(model, test_x, test_y, history_entity = all_data)
         wandb.finish()
 
     
