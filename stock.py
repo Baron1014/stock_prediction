@@ -3,6 +3,7 @@ import argparse
 import json
 import torch
 import wandb
+import logger
 import db
 import numpy as np
 from datetime import datetime
@@ -20,8 +21,9 @@ vol = 5
 
 # Model para
 learning_rate = 0.0001
-EPOCH = 8000
+EPOCH = 1500
 
+logger = logger.create_logger('predict_low_price', 'log/predict_low_price_log.log')
 
 class MydataSet(Dataset):
     def __init__(self, data):
@@ -55,11 +57,11 @@ class ReadInference:
     def __init__(self, s_date, e_date):
         api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_stock_info_from_date_json/{}/{}/{}".format(2330, s_date, e_date)
         r = requests.get(api_url)
-        history_info = json.loads(r.text) 
+        history_info = json.loads(r.text)['data']
         # data rerset low_price to next day
         history_data = [
             [data['capacity'], data['turnover'], data["open"], data["high"],data["close"],data["change"],data["transaction_volume"]] 
-            for i, data in enumerate(history_info)
+            for data in history_info
         ]
         history_data = np.array(history_data)
 
@@ -75,7 +77,7 @@ class ReadData():
     def __init__(self, stock=2330, s_date=20150301, e_date=20220322):
         api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_stock_info_from_date_json/{}/{}/{}".format(stock, s_date, e_date)
         r = requests.get(api_url)
-        history_info = json.loads(r.text) 
+        history_info = json.loads(r.text)['data']
         # data rerset low_price to next day
         target = [data["low"] for i, data in enumerate(history_info) if i != len(history_info)-1]
         history_data = [
@@ -170,7 +172,7 @@ def main():
     r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"uname":u_id, "pass":password, "scode": scode, "svol": str(vol), "sell_price":str(low_price)})
     print(r)
     print(low_price)
-    db.insert_predict_data(low_price, high_price=0, low_number=vol, high_number=vol)
+    logger.info("@Low price:{} @Low number:{}".format(low_price, vol))
 
 
 if __name__ == "__main__":
