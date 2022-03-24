@@ -4,7 +4,6 @@ import json
 import torch
 import wandb
 import logger
-import db
 import numpy as np
 from datetime import datetime
 from torch import nn
@@ -21,7 +20,7 @@ vol = 5
 
 # Model para
 learning_rate = 0.0001
-EPOCH = 1500
+EPOCH = 8000
 
 logger = logger.create_logger('predict_low_price', 'log/predict_low_price_log.log')
 
@@ -85,6 +84,7 @@ class ReadData():
             for i, data in enumerate(history_info) if i != len(history_info)-1
         ]
         # date: new -> old, change to old -> new
+        history_data = history_data.reverse()
         history_data = np.array(history_data)
         
         self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.1, shuffle=False)
