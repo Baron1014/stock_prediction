@@ -82,9 +82,10 @@ class ReadData():
             [data['capacity'], data['turnover'], data["open"], data["high"],data["close"],data["change"],data["transaction_volume"], target[i]] 
             for i, data in enumerate(history_info) if i != len(history_info)-1
         ]
+        # date: new -> old, change to old -> new
         history_data = np.array(history_data)
         
-        self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.2, random_state=42)
+        self.__training_data, self.__testing_data = train_test_split(history_data, test_size=0.1, shuffle=False)
         self.__mean = np.mean(self.__training_data[:, :-1], axis=0)
         self.__std = np.std(self.__training_data[:, :-1], axis=0)
         
@@ -147,7 +148,8 @@ def load_model(model_name, feature_number):
 
 def evaluation(model, test_x, test_y):
     predict_y = model(test_x.reshape(1, *test_x.shape))
-    predict_y_array = predict_y.cpu().detach().numpy()
+    predict_y_array = predict_y.cpu().detach().numpy().reshape(-1, 1)
+    print(predict_y_array.shape)
 
     # low price error
     plt.plot(predict_y_array, color="red", alpha=0.8, label="predict")
