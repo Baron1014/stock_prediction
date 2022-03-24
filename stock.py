@@ -133,7 +133,7 @@ def predict():
     all_data = ReadInference(20220301, int(today))
     predict_data = all_data.get_inference_data
     model = load_model("save_model", feature_number=predict_data.shape[1])
-    predict_value = model(predict_data)
+    predict_value = model(predict_data.reshape(1, *predict_data.shape))
 
     return "%.1f" % predict_value.item()
 
@@ -146,7 +146,7 @@ def load_model(model_name, feature_number):
     return model
 
 def evaluation(model, test_x, test_y):
-    predict_y = model(test_x)
+    predict_y = model(test_x.reshape(1, *test_x.shape))
     predict_y_array = predict_y.cpu().detach().numpy()
 
     # low price error
@@ -167,6 +167,7 @@ def main():
     low_price = predict()
     r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"uname":u_id, "pass":password, "scode": scode, "svol": str(vol), "sell_price":str(low_price)})
     print(r)
+    print(low_price)
     db.insert_predict_data(low_price, high_price=0, low_number=vol, high_number=vol)
 
 
@@ -177,17 +178,28 @@ if __name__ == "__main__":
                         action='store_true',
                         help='Execute prediction.')
     
+    parser.add_argument('--train',
+                        action='store_true',
+                        help='Execute training.')
+    
     args = parser.parse_args()
     if args.predict:
         main()
-    else:
+    elif args.train:
         wandb.init(project='Stock', entity="baron")
         all_data = ReadData()
         training_data = all_data.get_training_data
         model = train(training_data, training_data.shape[1]-1)
         test_x, test_y = all_data.get_testing_data
-        #model = load_model("save_model", feature_number=training_data.shape[1]-1)
-        #evaluation(model, test_x, test_y)
+        evaluation(model, test_x, test_y)
+        wandb.finish()
+    else:
+        wandb.init(project='Stock', entity="baron")
+        all_data = ReadData()
+        training_data = all_data.get_training_data
+        test_x, test_y = all_data.get_testing_data
+        model = load_model("save_model", feature_number=training_data.shape[1]-1)
+        evaluation(model, test_x, test_y)
         wandb.finish()
 
     
