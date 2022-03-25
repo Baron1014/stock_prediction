@@ -1,3 +1,4 @@
+import os
 import requests 
 import argparse
 import json
@@ -20,7 +21,7 @@ vol = 5
 
 # Model para
 learning_rate = 0.0001
-EPOCH = 20000
+EPOCH = 10000
 
 logger = logger.create_logger('predict_low_price', 'log/predict_low_price_log.log')
 
@@ -147,7 +148,6 @@ def train(training_data, feature_number):
     train_data = MydataSet(training_data)
     trainloader = DataLoader(dataset=train_data, batch_size=64)
     model = RNN(feature_number)
-    wandb.watch(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # optimize all cnn parameters
     loss_func = nn.MSELoss()
 
@@ -162,14 +162,17 @@ def train(training_data, feature_number):
         if step % 500 ==0:
             print("[{}/{}] Loss:{:.4f}".format(step, EPOCH, loss.item()))
 
-    torch.save(model.state_dict(), "./models/save_model.pth")
+    #torch.save(model.state_dict(), "./models/save_model.pth")
+    torch.save(model.state_dict(), os.path.join(wandb.run.dir, 'final_model.pth'))
+    torch.onnx.export(model, tx, "model_final.onnx")
+    wandb.save("model_final.onnx")
     return model
 
-def predict():
+def predict(model_id):
     today = datetime.now().strftime('%Y%m%d')
     all_data = ReadInference(20210810, int(today))
     predict_data = all_data.get_inference_data
-    model = load_model("save_model", feature_number=predict_data.shape[1])
+    model = load_model(model_id, feature_number=predict_data.shape[1])
     predict_value = model(predict_data.reshape(1, *predict_data.shape))
 
     # plot test result
@@ -181,11 +184,15 @@ def predict():
     return "%.1f" % predict_value.item()
 
 
-def load_model(model_name, feature_number):
+def load_model(run_id, feature_number):
+    api = wandb.Api()
+    run = api.run("baron/Stock/{}".format(run_id))
+    run.file("final_model.pth").download("./models/", replace=True)
+
     device = torch.device('cpu')
     model = RNN(feature_number)
-    model.load_state_dict(torch.load("models/{}.pth".format(model_name), map_location=device))
-    wandb.watch(model)
+    #model.load_state_dict(torch.load("models/{}.pth".format(model_name), map_location=device))
+    model.load_state_dict(torch.load("./models/final_model.pth", map_location=device))
 
     return model
 
@@ -222,8 +229,8 @@ def plot_testing_result(test_date, y_hat, real_y):
     #wandb.log({"real low price":  wandb.plot.line(table, "idx", "real", title="Real LowPrice")})
     wandb.summary["low price mse"] = mse(y_hat, real_y)
 
-def main():
-    low_price = predict()
+def main(model_id):
+    low_price = predict(model_id)
     r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"uname":u_id, "pass":password, "scode": scode, "svol": str(vol), "sell_price":str(low_price)})
     print(r)
     print(low_price)
@@ -242,12 +249,13 @@ if __name__ == "__main__":
                         help='Execute training.')
     
     args = parser.parse_args()
+    model_id = "3ba81f1m"
     if args.predict:
         week_day = datetime.today().strftime('%A')
         if week_day not in ["Saturday", "Sunday"]:
             wandb.init(project='Stock', entity="baron")
             print("Today is {}".format(week_day))
-            main()
+            main(model_id)
             wandb.finish()
 
     elif args.train:
@@ -264,6 +272,6 @@ if __name__ == "__main__":
         all_data = ReadData()
         training_data = all_data.get_training_data
         test_x, test_y = all_data.get_testing_data
-        model = load_model("save_model", feature_number=training_data.shape[1]-1)
+        model = load_model(model_id, feature_number=training_data.shape[1]-1)
         evaluation(model, test_x, test_y, history_entity = all_data)
         wandb.finish()
