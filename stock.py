@@ -37,18 +37,26 @@ class MydataSet(Dataset):
 class RNN(nn.Module):
     def __init__(self, input_size):
         super(RNN, self).__init__()
+        self.input = nn.Sequential(
+            nn.Linear(input_size, 32),
+            nn.LeakyReLU()
+        )
         self.rnn = nn.LSTM(
-            input_size=input_size,
+            input_size=32,
             hidden_size=64,
             num_layers=2,
             batch_first=True
         )
         self.out = nn.Sequential(
-            nn.Linear(64, 1)
+            nn.LeakyReLU(),
+            nn.Linear(64, 32),
+            nn.LeakyReLU(),
+            nn.Linear(32, 1)
         )
 
     def forward(self, x):
-        r_out, (h_n, h_c) = self.rnn(x, None)  # None 表示 hidden state 會用全0的 state
+        h = self.input(x)
+        r_out, (h_n, h_c) = self.rnn(h, None)  # None 表示 hidden state 會用全0的 state
         out = self.out(r_out)
         return out
 
@@ -139,6 +147,7 @@ def train(training_data, feature_number):
     train_data = MydataSet(training_data)
     trainloader = DataLoader(dataset=train_data, batch_size=64)
     model = RNN(feature_number)
+    wandb.watch(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # optimize all cnn parameters
     loss_func = nn.MSELoss()
 
@@ -176,6 +185,7 @@ def load_model(model_name, feature_number):
     device = torch.device('cpu')
     model = RNN(feature_number)
     model.load_state_dict(torch.load("models/{}.pth".format(model_name), map_location=device))
+    wandb.watch(model)
 
     return model
 
