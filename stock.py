@@ -81,15 +81,11 @@ class ReadInference:
 
         train_data = ReadData()
         self.__history_data_nor = train_data.normalize(history_data)
-        self.__inference_data = self.__history_data_nor[-1, :].reshape(1, -1)
-
-    @property
-    def get_inference_data(self):
-        return  torch.Tensor(self.__inference_data)
+        
 
     @property
     def get_evaluation_data(self):
-        return  torch.Tensor(self.__history_data_nor[:-1, :]), self.__target, self.__his_date
+        return  torch.Tensor(self.__history_data_nor), self.__target, self.__his_date
 
 class ReadData():
     def __init__(self, stock=2330, s_date=20150301, e_date=20220322):
@@ -171,15 +167,14 @@ def train(training_data, feature_number):
 def predict(model_id):
     today = datetime.now().strftime('%Y%m%d')
     all_data = ReadInference(20210810, int(today))
-    predict_data = all_data.get_inference_data
-    model = load_model(model_id, feature_number=predict_data.shape[1])
-    predict_value = model(predict_data.reshape(1, *predict_data.shape))
 
     # plot test result
     test_data, test_y, test_date = all_data.get_evaluation_data
+    model = load_model(model_id, feature_number=test_data.shape[1])
     eval_hat = model(test_data.reshape(1, *test_data.shape))
     eval_hat = eval_hat.cpu().detach().numpy().reshape(-1, 1)
-    plot_testing_result(test_date, eval_hat, test_y)
+    predict_value = eval_hat[-1]
+    plot_testing_result(test_date, eval_hat[:-1, :], test_y)
 
     return "%.1f" % predict_value.item()
 
@@ -249,7 +244,7 @@ if __name__ == "__main__":
                         help='Execute training.')
     
     args = parser.parse_args()
-    model_id = "3ba81f1m"
+    model_id = "t97eyk6r"
     if args.predict:
         week_day = datetime.today().strftime('%A')
         if week_day not in ["Saturday", "Sunday"]:
