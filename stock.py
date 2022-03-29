@@ -13,12 +13,6 @@ from sklearn.model_selection import train_test_split
 from matplotlib import pyplot as plt
 from sklearn.metrics import mean_squared_error as mse
 
-# stock info
-u_id = "NM6101080"
-password = "as987654"
-scode = "2330"
-vol = 5
-
 # Model para
 learning_rate = 0.0001
 EPOCH = 10000
@@ -225,8 +219,14 @@ def plot_testing_result(test_date, y_hat, real_y):
     wandb.summary["low price mse"] = mse(y_hat, real_y)
 
 def main(model_id):
+    # stock info
+    u_id = "NM6101080"
+    password = "as987654"
+    scode = "2330"
+    vol = 5
+
     low_price = predict(model_id)
-    r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"uname":u_id, "pass":password, "scode": scode, "svol": str(vol), "sell_price":str(low_price)})
+    r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"account":u_id, "password":password, "stock_code": scode, "stock_shares": str(vol), "stock_price":str(low_price)}).json()
     print(r)
     print(low_price)
     logger.info("@Low price:{} @Low number:{}".format(low_price, vol))
