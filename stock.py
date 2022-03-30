@@ -158,13 +158,14 @@ def train(training_data, feature_number):
     wandb.save("model_final.onnx")
     return model
 
-def predict(model_id):
+def predict(model_id=None, model=None):
     today = datetime.now().strftime('%Y%m%d')
     all_data = ReadInference(20210810, int(today))
 
     # plot test result
     test_data, test_y, test_date = all_data.get_evaluation_data
-    model = load_model(model_id, feature_number=test_data.shape[1])
+    if model is None:
+        model = load_model(model_id, feature_number=test_data.shape[1])
     eval_hat = model(test_data.reshape(1, *test_data.shape))
     eval_hat = eval_hat.cpu().detach().numpy().reshape(-1, 1)
     predict_value = eval_hat[-1]
@@ -218,14 +219,16 @@ def plot_testing_result(test_date, y_hat, real_y):
     #wandb.log({"real low price":  wandb.plot.line(table, "idx", "real", title="Real LowPrice")})
     wandb.summary["low price mse"] = mse(y_hat, real_y)
 
-def main(model_id):
+def main(model_id=None, model=None):
     # stock info
     u_id = "NM6101080"
     password = "as987654"
     scode = "2330"
     vol = 5
-
-    low_price = predict(model_id)
+    if model_id is not None:
+        low_price = predict(model_id=model_id)
+    else:
+        low_price = predict(model=model)
     r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"account":u_id, "password":password, "stock_code": scode, "stock_shares": str(vol), "stock_price":str(low_price)}).json()
     print(r)
     print(low_price)
@@ -248,18 +251,26 @@ if __name__ == "__main__":
     if args.predict:
         week_day = datetime.today().strftime('%A')
         if week_day not in ["Saturday", "Sunday"]:
-            wandb.init(project='Stock', entity="baron")
+            wandb.init(project='Stock', entity="baron", name=datetime.now().strftime('%Y%m%d'))
             print("Today is {}".format(week_day))
             main(model_id)
             wandb.finish()
 
     elif args.train:
-        wandb.init(project='Stock', entity="baron")
-        all_data = ReadData()
-        training_data = all_data.get_training_data
+        today = datetime.now().strftime('%Y%m%d')
+        wandb.init(project='Stock', entity="baron", name=datetime.now().strftime('%Y%m%d'))
+        # all_data = ReadData()
+        # training_data = all_data.get_training_data
+        # model = train(training_data, training_data.shape[1]-1)
+        # test_x, test_y = all_data.get_testing_data
+        # evaluation(model, test_x, test_y, history_entity = all_data)
+
+        # not validation
+        all_data = ReadData(e_date=int(today))
+        training_data, target = all_data.get_all_data
+        training_data = torch.Tensor(np.concatenate((training_data.numpy(), target), axis=1))
         model = train(training_data, training_data.shape[1]-1)
-        test_x, test_y = all_data.get_testing_data
-        evaluation(model, test_x, test_y, history_entity = all_data)
+        low_price = main(model=model)
         wandb.finish()
 
     else:
@@ -270,3 +281,5 @@ if __name__ == "__main__":
         model = load_model(model_id, feature_number=training_data.shape[1]-1)
         evaluation(model, test_x, test_y, history_entity = all_data)
         wandb.finish()
+
+    
