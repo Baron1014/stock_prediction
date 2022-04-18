@@ -1,2 +1,4 @@
 wandb/
 models/final_model.pth
+
+__pycache__/

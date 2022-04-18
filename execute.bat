@@ -1,1 +1,1 @@
-@python stock.py --predict
+@python stock.py --train
