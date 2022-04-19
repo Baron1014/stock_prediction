@@ -179,9 +179,9 @@ def predict(model_id=None, model=None, vol=5):
         predict_value = close_value*0.95
         vol = 10
 
-    plot_testing_result(test_date, eval_hat[:-1, :], test_y)
+    # plot_testing_result(test_date, eval_hat[:-1, :], test_y)
 
-    return "%.1f" % predict_value.item(), vol
+    return "%.1f" % predict_value.item(), vol, "%.1f" % close_value.item()
 
 
 def load_model(run_id, feature_number):
@@ -231,17 +231,62 @@ def plot_testing_result(test_date, y_hat, real_y):
 
 def main(model_id=None, model=None):
     # stock info
+    if model_id is not None:
+        low_price, vol, last_close_value = predict(model_id=model_id)
+    else:
+        low_price, vol, last_close_value = predict(model=model)
+
+    his_mean_price, his_shares = get_his_order_mean_price()
+    
+    if float(low_price) < his_mean_price:
+        rate = 1 - (float(low_price)/his_mean_price)
+        if 0 < rate <= 0.01: vol = 10
+        elif 0.01 < rate <= 0.02: vol = 20
+        elif 0.02 < rate <= 0.03: vol = 30
+        elif 0.03 < rate <= 0.04: vol = 40
+        elif 0.04 < rate <= 0.05: vol = 50
+        elif 0.05 < rate <= 0.06: vol = 60
+        elif 0.06 < rate <= 0.07: vol = 70
+        elif 0.07 < rate <= 0.08: vol = 80
+        elif 0.08 < rate <= 0.09: vol = 90
+        else: vol = 100
+        buy_stocks(vol, low_price)
+
+    elif float(last_close_value) < his_mean_price:
+        delta = his_mean_price - float(last_close_value)
+        for i in range(int(delta//5)+1):
+            c = i+1
+            buy_stocks(c*10, his_mean_price-5*c)
+    else:
+        buy_stocks(vol, low_price)
+
+    print(low_price)
+    logger.info("@Low price:{} @Low number:{} @his_mean_price:{} @last_close_value:{}".format(low_price, vol, his_mean_price, last_close_value))
+
+def buy_stocks(vol, low_price):
     u_id = "NM6101080"
     password = "as987654"
     scode = "2330"
-    if model_id is not None:
-        low_price, vol = predict(model_id=model_id)
-    else:
-        low_price, vol = predict(model=model)
     r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"account":u_id, "password":password, "stock_code": scode, "stock_shares": str(vol), "stock_price":str(low_price)}).json()
     print(r)
-    print(low_price)
-    logger.info("@Low price:{} @Low number:{}".format(low_price, vol))
+
+
+def get_his_order_mean_price():
+    now = datetime.today().strftime('%Y%m%d')
+    api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_user_order_by_date/nm6101080/20220320/{}".format(now)
+    r = requests.get(api_url)
+    history_info = json.loads(r.text)['data']
+    total_shares = 0
+    price_sum = 0
+    for i in history_info:
+        if i["state"]=='交易成功':
+            total_shares += i["shares"]
+            price_sum += i["shares"]*i["price"]
+    
+    if total_shares != 0:
+        return price_sum/total_shares, total_shares
+    else:
+        return None, None
 
 
 if __name__ == "__main__":
