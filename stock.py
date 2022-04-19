@@ -158,8 +158,8 @@ def train(training_data, feature_number):
 
     #torch.save(model.state_dict(), "./models/save_model.pth")
     torch.save(model.state_dict(), os.path.join(wandb.run.dir, 'final_model.pth'))
-    torch.onnx.export(model, tx, "model_final.onnx")
-    wandb.save("model_final.onnx")
+    #torch.onnx.export(model, tx, "model_final.onnx")
+    #wandb.save("model_final.onnx")
     return model
 
 def predict(model_id=None, model=None, vol=5):
