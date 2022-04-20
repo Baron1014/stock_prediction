@@ -252,13 +252,14 @@ def main(model_id=None, model=None):
         else: vol = 100
         buy_stocks(vol, low_price)
 
-    elif float(last_close_value) < his_mean_price:
+    else:
+        buy_stocks(vol, low_price)
+    
+    if float(last_close_value) < his_mean_price:
         delta = his_mean_price - float(last_close_value)
         for i in range(int(delta//5)+1):
             c = i+1
             buy_stocks(c*10, his_mean_price-5*c)
-    else:
-        buy_stocks(vol, low_price)
 
     print(low_price)
     logger.info("@Low price:{} @Low number:{} @his_mean_price:{} @last_close_value:{}".format(low_price, vol, his_mean_price, last_close_value))
