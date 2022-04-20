@@ -241,16 +241,16 @@ def main(model_id=None, model=None):
     # model predict price
     if float(low_price) < his_mean_price:
         rate = 1 - (float(low_price)/his_mean_price)
-        if 0 < rate <= 0.01: vol = 10
-        elif 0.01 < rate <= 0.02: vol = 20
-        elif 0.02 < rate <= 0.03: vol = 30
-        elif 0.03 < rate <= 0.04: vol = 40
-        elif 0.04 < rate <= 0.05: vol = 50
-        elif 0.05 < rate <= 0.06: vol = 60
-        elif 0.06 < rate <= 0.07: vol = 70
-        elif 0.07 < rate <= 0.08: vol = 80
-        elif 0.08 < rate <= 0.09: vol = 90
-        else: vol = 100
+        if 0 < rate <= 0.01: vol = his_shares
+        elif 0.01 < rate <= 0.02: vol = his_shares*2
+        elif 0.02 < rate <= 0.03: vol = his_shares*3
+        elif 0.03 < rate <= 0.04: vol = his_shares*4
+        elif 0.04 < rate <= 0.05: vol = his_shares*5
+        elif 0.05 < rate <= 0.06: vol = his_shares*6
+        elif 0.06 < rate <= 0.07: vol = his_shares*7
+        elif 0.07 < rate <= 0.08: vol = his_shares*8
+        elif 0.08 < rate <= 0.09: vol = his_shares*9
+        else: vol = his_shares*10
         buy_stocks(vol, low_price)
     else:
         buy_stocks(vol, low_price)
@@ -260,7 +260,7 @@ def main(model_id=None, model=None):
         delta = his_mean_price - float(last_close_value)
         for i in range(int(delta//5)+1):
             c = i+1
-            buy_stocks(c*10, his_mean_price-5*c)
+            buy_stocks(c*his_shares, his_mean_price-5*c)
 
     print(low_price)
     logger.info("@Low price:{} @Low number:{} @his_mean_price:{} @last_close_value:{}".format(low_price, vol, his_mean_price, last_close_value))
