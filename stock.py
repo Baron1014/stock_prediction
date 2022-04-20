@@ -238,6 +238,7 @@ def main(model_id=None, model=None):
 
     his_mean_price, his_shares = get_his_order_mean_price()
     
+    # model predict price
     if float(low_price) < his_mean_price:
         rate = 1 - (float(low_price)/his_mean_price)
         if 0 < rate <= 0.01: vol = 10
@@ -251,10 +252,10 @@ def main(model_id=None, model=None):
         elif 0.08 < rate <= 0.09: vol = 90
         else: vol = 100
         buy_stocks(vol, low_price)
-
     else:
         buy_stocks(vol, low_price)
     
+    # amortized cost
     if float(last_close_value) < his_mean_price:
         delta = his_mean_price - float(last_close_value)
         for i in range(int(delta//5)+1):
