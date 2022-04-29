@@ -237,11 +237,10 @@ def main(model_id=None, model=None):
         low_price, vol, last_close_value = predict(model=model)
 
     his_mean_price, his_shares = get_his_order_mean_price()
-    
+    discount =0.05
     # model predict price
     if float(low_price) < his_mean_price:
         rate = 1 - (float(low_price)/his_mean_price)
-        discount =0.05
         if 0 < rate <= 0.01: vol = int(his_shares*discount)
         elif 0.01 < rate <= 0.02: vol = int(his_shares*discount)*2
         elif 0.02 < rate <= 0.03: vol = int(his_shares*discount)*3
