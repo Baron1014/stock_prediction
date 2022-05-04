@@ -259,8 +259,11 @@ def main(model_id=None, model=None):
     if float(last_close_value) < his_mean_price:
         delta = his_mean_price - float(last_close_value)
         for i in range(int(delta//10)+1):
-            c = i+1
-            buy_stocks(int(c*his_shares*discount), his_mean_price-10*c)
+            # c = i+1
+            # buy_stocks(int(c*his_shares*discount), his_mean_price-10*c)
+            if i > 0:
+                for j in range(1, 10):
+                    buy_stocks(i, his_mean_price-((i)*10+j))
 
     print(low_price)
     logger.info("@Low price:{} @Low number:{} @his_mean_price:{} @last_close_value:{}".format(low_price, vol, his_mean_price, last_close_value))
@@ -303,7 +306,7 @@ if __name__ == "__main__":
                         help='Execute training.')
     
     args = parser.parse_args()
-    model_id = "onqwfkhy"
+    model_id = "6dq8z0ad"
     if args.predict:
         week_day = datetime.today().strftime('%A')
         if week_day not in ["Saturday", "Sunday"]:
