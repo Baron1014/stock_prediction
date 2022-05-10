@@ -264,6 +264,13 @@ def main(model_id=None, model=None):
             if i > 0:
                 for j in range(1, 10):
                     buy_stocks(i, his_mean_price-((i)*10+j))
+    
+    # amortized sold
+    premium=5
+    buy_dict = get_buy_his_order(premium)
+    for bp in buy_dict.keys():
+        if float(last_close_value) > bp:
+            sold_stocks(buy_dict[bp], bp+premium)
 
     print(low_price)
     logger.info("@Low price:{} @Low number:{} @his_mean_price:{} @last_close_value:{}".format(low_price, vol, his_mean_price, last_close_value))
@@ -275,6 +282,12 @@ def buy_stocks(vol, low_price):
     r = requests.post("http://140.116.86.242:8081/stock/api/v1/buy", data={"account":u_id, "password":password, "stock_code": scode, "stock_shares": str(vol), "stock_price":str(low_price)}).json()
     print(r)
 
+def sold_stocks(vol, price):
+    u_id = "NM6101080"
+    password = "as987654"
+    scode = "2330"
+    r = requests.post("http://140.116.86.242:8081/stock/api/v1/sell", data={"account":u_id, "password":password, "stock_code": scode, "stock_shares": str(vol), "stock_price":str(price)}).json()
+    print(r)
 
 def get_his_order_mean_price():
     now = datetime.today().strftime('%Y%m%d')
@@ -292,6 +305,30 @@ def get_his_order_mean_price():
         return price_sum/total_shares, total_shares
     else:
         return None, None
+
+def get_buy_his_order(premium):
+    now = datetime.today().strftime('%Y%m%d')
+    api_url = "http://140.116.86.242:8081/stock/api/v1/api_get_user_order_by_date/nm6101080/20220320/{}".format(now)
+    r = requests.get(api_url)
+    history_info = json.loads(r.text)['data']
+    buy_dict = dict()
+    sold_dict = dict()
+    for i in history_info:
+        if i["state"]=='交易成功':
+            if i['type']=="買進":
+                p = round(float(i["price"]), 2)
+                buy_dict[p] = i["shares"]
+            elif i['type']=="賣出":
+                p = round(float(i["price"]), 2)
+                sold_dict[p] = i["shares"]
+    
+    # delete sold shares
+    if sold_dict:
+        for s in sold_dict.keys():
+            del buy_dict[s-premium]
+    
+    return buy_dict
+
 
 
 if __name__ == "__main__":
